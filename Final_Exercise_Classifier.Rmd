@@ -1,0 +1,116 @@
+---
+title: "Exercise Classe Prediction"
+author: "W Chung"
+date: "2023-08-28"
+output: html_document
+---
+
+## EXECUTIVE SUMMARY
+
+In this report, I present the predictive model of Exercise Classe--the manner in which exercises were done. The predictors were various metrics collected using wearable devices. 
+
+Four models were tested: Tree, Linear Discriminant Analysis, Random Forest, and Gradient Boosting Trees. 
+The Random Forest (rf) and Gradient Boosting Tree (gbm) performed the best with the accuracy on the holdout validation data, .99 and .96, respectively. 
+
+## Data Set Partitions  
+
+The dataset was split into two groups first: training and holdout validation sets (70% and 30%). The 30% holdout data were set aside for final evaluation. 
+
+The training data were divided into training and test data sets (again, 70% and 30%). 
+
+
+```{r}
+
+library(caret) 
+
+pml = read.csv('pml-training.csv') 
+pml.test = read.csv('pml-testing.csv')
+
+cn = names(pml); set.seed(1)
+
+# holdout validation dataset 
+inhold = createDataPartition(pml$classe, p=.30, list=F) 
+pml.ho = pml[ inhold,]; pml    = pml[-inhold,] 
+
+# train - test data split 
+intrain = createDataPartition(pml$classe, p=.70, list=F)
+pml.tr = pml[ intrain,]; pml.te = pml[-intrain,]
+
+```
+
+## Data Cleaning and Feature Selection
+
+Out of 160 columns, 67 columns had the same large number of missing values. These 67 columns had values only when new_window == T (small number of rows). These 67 columns were removed from the analysis. 
+
+The columns that group the data into time series, such as user_name, time_stamp, etc., were not useful in predict the classe for each row. These columns (columns 1-7) were removed. 
+
+Also, 37 columns included summary statistics, such as skewness, kurtosis, min, and max, of the preceding rows. These columns were removed. 
+
+
+```{r}
+
+col.miss = sapply(cn, 
+   function(ix) sum( is.na(pml.tr[ix]) ) 
+)
+# table(col.miss) 
+
+cn.miss = names(col.miss[ col.miss > 0 ])
+cn.nomiss = cn[ !(cn %in% cn.miss) ]
+# (complete.cases(pml.tr[,cn.nomiss]))
+
+col.num = sapply(cn.nomiss, function(ix) is.numeric(pml.tr[,ix]))
+cn.num = cn.nomiss[ col.num ] 
+cn.nonum = cn.nomiss[ !col.num ] 
+
+cn.df = c(cn.num[5:56], 'classe'); df = pml.tr[,cn.df]
+
+```
+
+## Model Testing and Selection
+
+The Decision Tree (rpart) and Linear Discriminant Analysis (lda) yield low accuracy on the test data. 
+
+```{r}
+fit.tre = train(classe ~ ., data=df, method='rpart')
+confusionMatrix(predict(fit.tre, pml.te), factor(pml.te$classe))
+
+fit.lda = train(classe ~ ., data=df, method='lda', preProcess=c('center','scale')) 
+confusionMatrix(predict(fit.lda, pml.te), factor(pml.te$classe))
+
+```
+
+Both the Random Forest (rf) and Gradient Boosting Trees (gbm) performed very well on the test and holdout data sets. To save the execution time of this markdown file, the fitted models were saved and read in. 
+
+These two classifiers predict the same target classes for the 20 records in the Testing data set provided. 
+
+
+```{r}
+# fit.rf = train(classe ~ ., data=df, method='rf')
+fit.rf = readRDS('fit_rf.rds') 
+# confusionMatrix(predict(fit.rf, pml.tr), factor(pml.tr$classe))
+# confusionMatrix(predict(fit.rf, pml.te), factor(pml.te$classe))
+confusionMatrix(predict(fit.rf, pml.ho), factor(pml.ho$classe))
+
+# fit.gbm = train(classe ~ ., data=df, method='gbm', verbose=F)
+fit.gbm = readRDS('fit_gbm.rds') 
+# confusionMatrix(predict(fit.gbm, pml.te), factor(pml.te$classe))
+# confusionMatrix(predict(fit.gbm, pml.ho), factor(pml.ho$classe))
+confusionMatrix(predict(fit.gbm, pml.tr), factor(pml.tr$classe))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
